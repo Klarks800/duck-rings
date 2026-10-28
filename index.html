@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Duck Rings</title>
+  <title>Утиные колечки</title>
   <style>
     *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#f8dfac;user-select:none;-webkit-user-select:none}
     body{display:flex;align-items:center;justify-content:center;padding:max(env(safe-area-inset-top),var(--platform-inset-top,0px)) max(env(safe-area-inset-right),var(--platform-inset-right,0px)) max(env(safe-area-inset-bottom),var(--platform-inset-bottom,0px),var(--platform-banner-height,0px)) max(env(safe-area-inset-left),var(--platform-inset-left,0px));background:radial-gradient(ellipse at center,#fff2ce,#e5b16c)}
@@ -14,19 +14,19 @@
   </style>
 </head>
 <body>
-  <main id="game"><canvas id="unity-canvas" tabindex="0"></canvas><div id="loading">Duck Rings<progress id="progress" value="0" max="1"></progress><div id="error"></div></div></main>
+  <main id="game"><canvas id="unity-canvas" tabindex="0"></canvas><div id="loading">Утиные колечки<progress id="progress" value="0" max="1"></progress><div id="error"></div></div></main>
   <script src="platform.js"></script>
   <script>
     const canvas=document.getElementById('unity-canvas');
     canvas.addEventListener('contextmenu',e=>e.preventDefault());
     function fail(message){document.getElementById('error').textContent=message;document.getElementById('error').style.display='block';document.getElementById('progress').hidden=true;}
-    const config={dataUrl:'Build/DuckRings.data.unityweb',frameworkUrl:'Build/DuckRings.framework.js.unityweb',codeUrl:'Build/DuckRings.wasm.unityweb',streamingAssetsUrl:'StreamingAssets',companyName:"DefaultCompany",productName:"Duck Rings",productVersion:"1.0",matchWebGLToCanvasSize:true,devicePixelRatio:Math.min(window.devicePixelRatio||1,2),showBanner:(message,type)=>{if(type==='error')fail(message)}};
+    const config={dataUrl:'Build/DuckRings-ru.data.unityweb',frameworkUrl:'Build/DuckRings.framework.js.unityweb',codeUrl:'Build/DuckRings.wasm.unityweb',streamingAssetsUrl:'StreamingAssets',companyName:"DefaultCompany",productName:"Duck Rings",productVersion:"1.0",matchWebGLToCanvasSize:true,devicePixelRatio:Math.min(window.devicePixelRatio||1,2),showBanner:(message,type)=>{if(type==='error')fail(message)}};
     const script=document.createElement('script');script.src='Build/DuckRings.loader.js';
-    script.onerror=()=>fail('Could not load the game. Please refresh the page.');
+    script.onerror=()=>fail('Не удалось загрузить игру. Обнови страницу.');
     script.onload=()=>createUnityInstance(canvas,config,p=>document.getElementById('progress').value=p).then(instance=>{window.unityInstance=instance;document.getElementById('loading').style.display='none';canvas.focus();DuckRingsPlatform.startBanners()}).catch(e=>fail(String(e)));
     DuckRingsPlatform.init().then(()=>document.body.appendChild(script)).catch(()=>{
-      fail('Could not load your platform save. Check the connection and retry.');
-      const retry=document.createElement('button');retry.textContent='Retry';retry.onclick=()=>location.reload();document.getElementById('error').appendChild(retry);
+      fail('Не удалось загрузить сохранение. Проверь подключение к интернету и попробуй снова.');
+      const retry=document.createElement('button');retry.textContent='Повторить';retry.onclick=()=>location.reload();document.getElementById('error').appendChild(retry);
     });
   </script>
 </body>
