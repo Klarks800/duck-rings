@@ -20,7 +20,7 @@
     const canvas=document.getElementById('unity-canvas');
     canvas.addEventListener('contextmenu',e=>e.preventDefault());
     function fail(message){document.getElementById('error').textContent=message;document.getElementById('error').style.display='block';document.getElementById('progress').hidden=true;}
-    const config={dataUrl:'Build/DuckRings-ru4.data.unityweb',frameworkUrl:'Build/DuckRings.framework.js.unityweb',codeUrl:'Build/DuckRings.wasm.unityweb',streamingAssetsUrl:'StreamingAssets',companyName:"DefaultCompany",productName:"Duck Rings",productVersion:"1.0",matchWebGLToCanvasSize:true,devicePixelRatio:Math.min(window.devicePixelRatio||1,2),showBanner:(message,type)=>{if(type==='error')fail(message)}};
+    const config={dataUrl:'Build/DuckRings-ru5.data.unityweb',frameworkUrl:'Build/DuckRings.framework.js.unityweb',codeUrl:'Build/DuckRings.wasm.unityweb',streamingAssetsUrl:'StreamingAssets',companyName:"DefaultCompany",productName:"Duck Rings",productVersion:"1.0",matchWebGLToCanvasSize:true,devicePixelRatio:Math.min(window.devicePixelRatio||1,2),showBanner:(message,type)=>{if(type==='error')fail(message)}};
     const script=document.createElement('script');script.src='Build/DuckRings.loader.js';
     script.onerror=()=>fail('Не удалось загрузить игру. Обнови страницу.');
     script.onload=()=>createUnityInstance(canvas,config,p=>document.getElementById('progress').value=p).then(instance=>{window.unityInstance=instance;document.getElementById('loading').style.display='none';canvas.focus();DuckRingsPlatform.startBanners()}).catch(e=>fail(String(e)));
