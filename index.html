@@ -15,12 +15,12 @@
 </head>
 <body>
   <main id="game"><canvas id="unity-canvas" tabindex="0"></canvas><div id="loading">Утиные колечки<progress id="progress" value="0" max="1"></progress><div id="error"></div></div></main>
-  <script src="platform.js?v=ru2"></script>
+  <script src="platform.js?v=ru3"></script>
   <script>
     const canvas=document.getElementById('unity-canvas');
     canvas.addEventListener('contextmenu',e=>e.preventDefault());
     function fail(message){document.getElementById('error').textContent=message;document.getElementById('error').style.display='block';document.getElementById('progress').hidden=true;}
-    const config={dataUrl:'Build/DuckRings-ru2.data.unityweb',frameworkUrl:'Build/DuckRings.framework.js.unityweb',codeUrl:'Build/DuckRings.wasm.unityweb',streamingAssetsUrl:'StreamingAssets',companyName:"DefaultCompany",productName:"Duck Rings",productVersion:"1.0",matchWebGLToCanvasSize:true,devicePixelRatio:Math.min(window.devicePixelRatio||1,2),showBanner:(message,type)=>{if(type==='error')fail(message)}};
+    const config={dataUrl:'Build/DuckRings-ru3.data.unityweb',frameworkUrl:'Build/DuckRings.framework.js.unityweb',codeUrl:'Build/DuckRings.wasm.unityweb',streamingAssetsUrl:'StreamingAssets',companyName:"DefaultCompany",productName:"Duck Rings",productVersion:"1.0",matchWebGLToCanvasSize:true,devicePixelRatio:Math.min(window.devicePixelRatio||1,2),showBanner:(message,type)=>{if(type==='error')fail(message)}};
     const script=document.createElement('script');script.src='Build/DuckRings.loader.js';
     script.onerror=()=>fail('Не удалось загрузить игру. Обнови страницу.');
     script.onload=()=>createUnityInstance(canvas,config,p=>document.getElementById('progress').value=p).then(instance=>{window.unityInstance=instance;document.getElementById('loading').style.display='none';canvas.focus();DuckRingsPlatform.startBanners()}).catch(e=>fail(String(e)));
