@@ -1,0 +1,17 @@
+Duck Rings — VK / OK
+
+VK app: 54861116. Linked OK app: 512005202512.
+Upload every file and preserve the directory structure.
+Entry point for desktop and mobile: index.html.
+
+VK Hosting: vk-hosting-config.json is included for the official
+@vkontakte/vk-miniapps-deploy tool. It must be run from this directory.
+Alternative: host this directory over HTTPS and enter the index URL in
+the app settings for both platforms. Preserve platform launch parameters.
+Do not block framing with X-Frame-Options: DENY or SAMEORIGIN.
+Unity .unityweb decompression fallback is included; special compression
+headers are not required.
+
+Enable monetization and required platform permissions in the dashboards.
+This archive has not been published or approved by either platform.
+Test SDK initialization, saves and real ads inside both app containers.
