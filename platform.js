@@ -11,7 +11,9 @@
   let cloud=true, lastSaveError='';
   let bannersStarted=false,bannerVisible=false,bannerClosed=false,bannerSearching=false,bannerRetry;
   let bannerQueue=Promise.resolve(),bannerHeight=0;
-  function wantBanner(){return bannersStarted&&ready&&provider!=='local'&&!hidden&&!platformHidden&&!pendingAd&&!bannerClosed;}
+  let adsAvailableAt=0;
+  function adsAllowed(){return ready&&Date.now()>=adsAvailableAt&&!hidden&&!platformHidden;}
+  function wantBanner(){return bannersStarted&&adsAllowed()&&provider!=='local'&&!pendingAd&&!bannerClosed;}
   function bannerSpace(height) {
     bannerHeight=Math.max(0,Math.min(Number(height)||0,(Number(w.innerHeight)||720)*.4));
     w.document.documentElement.style.setProperty('--platform-banner-height',bannerHeight+'px');
@@ -47,7 +49,13 @@
     }).catch(()=>{});
     return bannerQueue;
   }
-  function startBanners(){bannersStarted=true;return syncBanner();}
+  function startBanners(){
+    bannersStarted=true;
+    if(ready&&Date.now()<adsAvailableAt){
+      w.clearTimeout(bannerRetry);bannerRetry=w.setTimeout(syncBanner,adsAvailableAt-Date.now());
+    }
+    return syncBanner();
+  }
   function okBanner(method,result,data) {
     if(method==='requestBannerAds') {
       if(result==='ok'&&data==='ad_loaded') {
@@ -162,8 +170,8 @@
       if(Number.isFinite(value))w.document.documentElement.style.setProperty('--platform-inset-'+side,Math.max(0,value)+'px');
     }
   }
-  function finishAd(success) {
-    if(!pendingAd)return;
+  function finishAd(success,request=pendingAd) {
+    if(!pendingAd||pendingAd!==request)return;
     const pending=pendingAd;pendingAd=null;w.clearTimeout(pending.timer);pending.resolve(success===true);syncBanner();
   }
   function okCallback(method,result,data) {
@@ -171,31 +179,35 @@
     if(!pendingAd)return;
     if(pendingAd.rewarded) {
       if(method==='loadAd'&&pendingAd.phase==='loading') {
-        if(result==='ok'&&data==='ready'){pendingAd.phase='showing';w.FAPI.UI.showLoadedAd();}
-        else if(result!=='ok')finishAd(false);
+        if(result==='ok'&&(data==='ready'||data==='ad_prepared')){
+          if(!adsAllowed()){finishAd(false);return;}
+          pendingAd.phase='showing';
+          try{w.FAPI.UI.showLoadedAd();}catch(_){finishAd(false);}
+        }
+        else if(result==='error')finishAd(false);
       } else if(method==='showLoadedAd'&&pendingAd.phase==='showing') {
         if(result==='ok'&&(data==='complete'||data==='ad_shown'))finishAd(true);
-        else if(result!=='ok')finishAd(false);
+        else if(result==='error')finishAd(false);
       }
     } else if(method==='showAd') {
       if(result==='ok'&&data==='ad_shown')finishAd(true);
-      else if(result!=='ok')finishAd(false);
+      else if(result==='error')finishAd(false);
     }
   }
   async function showAd(rewarded) {
-    if(!ready||provider==='local'||pendingAd||adsTimedOut)return false;
+    if(!adsAllowed()||provider==='local'||pendingAd||adsTimedOut)return false;
     return new Promise(resolve=>{
       pendingAd={rewarded,resolve,phase:rewarded?'loading':'showing',timer:w.setTimeout(()=>{
         // FAPI has no request IDs; never let a late callback reward a later request.
-        adsTimedOut=true;finishAd(false);
+        adsTimedOut=provider==='fapi';finishAd(false,request);
       },180000)};
       const request=pendingAd;
-      const run=()=>{if(pendingAd!==request)return;try {
+      const run=()=>{if(pendingAd!==request)return;if(!adsAllowed()){finishAd(false,request);return;}try {
         if(provider==='bridge') {
           bridge.send('VKWebAppShowNativeAds',{ad_format:rewarded?'reward':'interstitial'})
-            .then(data=>finishAd(data?.result===true),()=>finishAd(false));
+            .then(data=>finishAd(data?.result===true,request),()=>finishAd(false,request));
         } else if(rewarded)w.FAPI.UI.loadAd();else w.FAPI.UI.showAd();
-      } catch(_){finishAd(false);}};
+      } catch(_){finishAd(false,request);}};
       if(bannersStarted)syncBanner().then(run);else run();
     });
   }
@@ -237,7 +249,9 @@
       const remote=await loadCloud();
       if(remote&&(!journal?.pending||remote.updatedAt>=journal.updatedAt))journal=remote;
     }
-    profile=journal?.data||'';ready=true;
+    // Apply the platform's first-install safety interval on every launch too.
+    // A reload must never cause an early automatic banner or full-screen ad.
+    profile=journal?.data||'';adsAvailableAt=Date.now()+30000;ready=true;
     if(journal)localWrite();
     if(journal?.pending)saveTimer=w.setTimeout(flush,1000);
   }
