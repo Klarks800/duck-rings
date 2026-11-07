@@ -12,6 +12,70 @@
   let bannersStarted=false,bannerVisible=false,bannerClosed=false,bannerSearching=false,bannerRetry;
   let bannerQueue=Promise.resolve(),bannerHeight=0;
   let adsAvailableAt=0;
+  const adCounters={rewardAttempts:0,interstitialAttempts:0,rewardSdkRequests:0,interstitialSdkRequests:0,
+    rewardSdkCompletions:0,interstitialSdkCompletions:0,bannerSdkRequests:0,bannerSdkSuccesses:0};
+  let lastAdError=null,lastAdBlock=null,adWarnings=0;
+  function adError(method,reason,error) {
+    const rawCode=error?.error_data?.error_code??error?.code;
+    const code=/^-?\d{1,8}$/.test(String(rawCode))?Number(rawCode):null;
+    // Never retain launch URLs, account IDs, signatures or arbitrary SDK messages.
+    lastAdError={method,reason,code};
+    if(adWarnings++<10&&typeof console!=='undefined'&&console.warn)
+      console.warn('[DuckRings ads]',JSON.stringify(lastAdError));
+  }
+  function adBlockReason(){
+    if(!ready)return 'not_initialized';
+    if(provider==='local')return params.has('api_id')||params.has('viewer_id')?'legacy_vk_launch_not_supported':'no_platform_parameters';
+    if(Date.now()<adsAvailableAt)return 'first_30_seconds';
+    if(hidden||platformHidden)return 'app_hidden';
+    if(pendingAd)return 'another_ad_pending';
+    if(adsTimedOut)return 'fapi_reload_required_after_timeout';
+    return '';
+  }
+  let adPanel=null;
+  function closeAdPanel(){if(adPanel){adPanel.remove();adPanel=null;}}
+  function openAdPanel(){
+    if(adPanel){closeAdPanel();return;}
+    const overlay=w.document.createElement('div');
+    overlay.setAttribute('role','dialog');overlay.setAttribute('aria-label','Диагностика рекламы');
+    Object.assign(overlay.style,{position:'fixed',inset:'0 0 var(--platform-banner-height,0px) 0',zIndex:'2147483647',background:'#101827e8',display:'flex',alignItems:'center',justifyContent:'center',padding:'16px'});
+    const box=w.document.createElement('section');
+    Object.assign(box.style,{display:'flex',flexDirection:'column',width:'min(760px,100%)',maxHeight:'100%',overflow:'hidden',background:'#fff',color:'#17212b',borderRadius:'12px',padding:'20px',font:'15px system-ui',userSelect:'text'});
+    const title=w.document.createElement('h2');title.textContent='Диагностика рекламы';
+    const note=w.document.createElement('p');note.textContent='Проверка текущего запуска. Подтверждения SDK не означают подтверждённый доход. F2 или Esc — закрыть.';
+    const text=w.document.createElement('textarea');text.readOnly=true;text.setAttribute('aria-label','Состояние рекламного SDK');
+    Object.assign(title.style,{margin:'0 0 10px',flexShrink:'0'});Object.assign(note.style,{margin:'0 0 10px',flexShrink:'0',fontSize:'13px'});
+    Object.assign(text.style,{width:'100%',height:'min(40vh,300px)',minHeight:'80px',flex:'1 1 auto',resize:'none',font:'13px monospace',userSelect:'text'});
+    const select=w.document.createElement('button');select.textContent='Выделить результат';select.onclick=()=>{text.focus();text.select();};
+    const close=w.document.createElement('button');close.textContent='Закрыть';close.onclick=closeAdPanel;
+    for(const button of [select,close])Object.assign(button.style,{padding:'10px 14px',margin:'8px 8px 0 0',cursor:'pointer'});
+    const controls=w.document.createElement('div');controls.style.flexShrink='0';controls.append(select,close);
+    box.append(title,note,text,controls);overlay.append(box);w.document.body.append(overlay);adPanel=overlay;
+    function update(){
+      if(adPanel!==overlay)return;
+      const s=w.DuckRingsPlatform.adStatus;
+      const reasons={not_initialized:'Инициализация не завершена',no_platform_parameters:'Нет параметров запуска ВК/ОК: реклама отключена',
+        legacy_vk_launch_not_supported:'Получены старые параметры ВК api_id/viewer_id: этот контейнер ещё не подключён',
+        first_30_seconds:'Первые 30 секунд',app_hidden:'Приложение скрыто',another_ad_pending:'Ожидается ответ на другой рекламный запрос',
+        fapi_reload_required_after_timeout:'После тайм-аута FAPI нужна перезагрузка'};
+      const c=s.counters;
+      text.value='Версия: '+s.version+'\nПлощадка: '+s.platform+'\nАдаптер: '+s.provider+
+        '\nИнициализация: '+(s.ready?'завершена':'не завершена')+'\nЗапрет показа: '+(reasons[s.blockReason]||'нет')+
+        '\nОжидание старта: '+s.warmupSecondsRemaining+' сек.\nБаннер: '+(s.bannerVisible?'показ подтверждён SDK':'не показан')+
+        '\nБаннер — запросы SDK / подтверждения: '+c.bannerSdkRequests+' / '+c.bannerSdkSuccesses+
+        '\nНаграда — нажатия / запросы SDK / завершения: '+c.rewardAttempts+' / '+c.rewardSdkRequests+' / '+c.rewardSdkCompletions+
+        '\nМежстраничная — попытки / запросы SDK / завершения: '+c.interstitialAttempts+' / '+c.interstitialSdkRequests+' / '+c.interstitialSdkCompletions+
+        '\nПоследний отказ SDK: '+(s.lastError?JSON.stringify(s.lastError):'не зафиксирован')+
+        '\nПоследняя блокировка: '+(s.lastBlock?JSON.stringify(s.lastBlock):'не зафиксирована')+
+        '\n\nСчётчики только за текущий запуск. Доход в кабинете этой панелью не проверяется.';
+      w.setTimeout(update,1000);
+    }
+    update();close.focus();
+  }
+  w.addEventListener('keydown',event=>{
+    if((event.code==='F2'||event.key==='F2')&&!event.repeat){event.preventDefault();event.stopPropagation();openAdPanel();}
+    else if(adPanel&&event.key==='Escape'){event.preventDefault();event.stopPropagation();closeAdPanel();}
+  },true);
   function adsAllowed(){return ready&&Date.now()>=adsAvailableAt&&!hidden&&!platformHidden;}
   function wantBanner(){return bannersStarted&&adsAllowed()&&provider!=='local'&&!pendingAd&&!bannerClosed;}
   function bannerSpace(height) {
@@ -31,16 +95,18 @@
       if(provider==='bridge') {
         if(wanted===bannerVisible)return;
         try {
+          if(wanted)adCounters.bannerSdkRequests++;
           const result=await timeout(bridge.send(wanted?'VKWebAppShowBannerAd':'VKWebAppHideBannerAd',wanted?{banner_location:'bottom',layout_type:'overlay',can_close:true}:{}),10000);
           if(result?.result===true) {
             bannerVisible=wanted;
+            if(wanted)adCounters.bannerSdkSuccesses++;
             // With resize, the host already reduced the iframe; avoid double padding.
             bannerSpace(wanted&&result.layout_type!=='resize'?(result.banner_height||96):0);
-          }
-        }catch(_){}
+          } else adError(wanted?'VKWebAppShowBannerAd':'VKWebAppHideBannerAd','sdk_did_not_confirm');
+        }catch(error){adError(wanted?'VKWebAppShowBannerAd':'VKWebAppHideBannerAd','sdk_rejected',error);}
       } else if(wanted&&!bannerVisible&&!bannerSearching) {
         bannerSearching=true;
-        try{w.FAPI.invokeUIMethod('requestBannerAds');}catch(_){bannerSearching=false;}
+        try{adCounters.bannerSdkRequests++;w.FAPI.invokeUIMethod('requestBannerAds');}catch(error){bannerSearching=false;adError('requestBannerAds','sdk_rejected',error);}
       } else if(!wanted&&(bannerVisible||bannerSearching)) {
         try{w.FAPI.invokeUIMethod('hideBannerAds');}catch(_){}
         bannerSearching=false;bannerVisible=false;bannerSpace(0);
@@ -64,9 +130,9 @@
         bannerVisible=true;bannerSpace(w.innerWidth<600?106:96);if(!wantBanner())syncBanner();
       } else if(data==='hidden_by_user') {
         bannerClosed=true;bannerVisible=false;bannerSpace(0);syncBanner();
-      } else if(result==='error') {bannerSearching=false;if(data==='disabled'||data==='not_supported')bannerClosed=true;retryBanner();}
+      } else if(result==='error') {bannerSearching=false;adError(method,'sdk_rejected');if(data==='disabled'||data==='not_supported')bannerClosed=true;retryBanner();}
     } else if(method==='showBannerAds'&&result==='ok'&&String(data)==='true') {
-      bannerVisible=true;bannerSpace(w.innerWidth<600?106:96);if(!wantBanner())syncBanner();
+      bannerVisible=true;adCounters.bannerSdkSuccesses++;bannerSpace(w.innerWidth<600?106:96);if(!wantBanner())syncBanner();
     } else if(method==='hideBannerAds'&&result==='ok'&&String(data)==='true') {
       bannerVisible=false;bannerSpace(0);
     } else if(method==='showBannerAds') {
@@ -172,6 +238,7 @@
   }
   function finishAd(success,request=pendingAd) {
     if(!pendingAd||pendingAd!==request)return;
+    if(success===true)adCounters[pendingAd.rewarded?'rewardSdkCompletions':'interstitialSdkCompletions']++;
     const pending=pendingAd;pendingAd=null;w.clearTimeout(pending.timer);pending.resolve(success===true);syncBanner();
   }
   function okCallback(method,result,data) {
@@ -182,32 +249,41 @@
         if(result==='ok'&&(data==='ready'||data==='ad_prepared')){
           if(!adsAllowed()){finishAd(false);return;}
           pendingAd.phase='showing';
-          try{w.FAPI.UI.showLoadedAd();}catch(_){finishAd(false);}
+          try{w.FAPI.UI.showLoadedAd();}catch(error){adError('showLoadedAd','sdk_rejected',error);finishAd(false);}
         }
-        else if(result==='error')finishAd(false);
+        else if(result==='error'){adError(method,'sdk_rejected');finishAd(false);}
       } else if(method==='showLoadedAd'&&pendingAd.phase==='showing') {
         if(result==='ok'&&(data==='complete'||data==='ad_shown'))finishAd(true);
-        else if(result==='error')finishAd(false);
+        else if(result==='error'){adError(method,'sdk_rejected');finishAd(false);}
       }
     } else if(method==='showAd') {
       if(result==='ok'&&data==='ad_shown')finishAd(true);
-      else if(result==='error')finishAd(false);
+      else if(result==='error'){adError(method,'sdk_rejected');finishAd(false);}
     }
   }
   async function showAd(rewarded) {
-    if(!adsAllowed()||provider==='local'||pendingAd||adsTimedOut)return false;
+    adCounters[rewarded?'rewardAttempts':'interstitialAttempts']++;
+    const blocked=adBlockReason();
+    if(blocked){lastAdBlock={format:rewarded?'reward':'interstitial',reason:blocked};return false;}
+    lastAdBlock=null;
     return new Promise(resolve=>{
       pendingAd={rewarded,resolve,phase:rewarded?'loading':'showing',timer:w.setTimeout(()=>{
         // FAPI has no request IDs; never let a late callback reward a later request.
-        adsTimedOut=provider==='fapi';finishAd(false,request);
+        if(pendingAd!==request)return;
+        adsTimedOut=provider==='fapi';adError(rewarded?'reward':'interstitial','sdk_timeout');finishAd(false,request);
       },180000)};
       const request=pendingAd;
       const run=()=>{if(pendingAd!==request)return;if(!adsAllowed()){finishAd(false,request);return;}try {
         if(provider==='bridge') {
+          adCounters[rewarded?'rewardSdkRequests':'interstitialSdkRequests']++;
           bridge.send('VKWebAppShowNativeAds',{ad_format:rewarded?'reward':'interstitial'})
-            .then(data=>finishAd(data?.result===true,request),()=>finishAd(false,request));
-        } else if(rewarded)w.FAPI.UI.loadAd();else w.FAPI.UI.showAd();
-      } catch(_){finishAd(false,request);}};
+            .then(data=>{if(pendingAd!==request)return;if(data?.result!==true)adError('VKWebAppShowNativeAds','sdk_did_not_confirm');finishAd(data?.result===true,request);},
+              error=>{if(pendingAd!==request)return;adError('VKWebAppShowNativeAds','sdk_rejected',error);finishAd(false,request);});
+        } else {
+          adCounters[rewarded?'rewardSdkRequests':'interstitialSdkRequests']++;
+          if(rewarded)w.FAPI.UI.loadAd();else w.FAPI.UI.showAd();
+        }
+      } catch(error){adError('showAd','sdk_rejected',error);finishAd(false,request);}};
       if(bannersStarted)syncBanner().then(run);else run();
     });
   }
@@ -262,6 +338,11 @@
   w.DuckRingsPlatform=Object.freeze({init,save,showAd,flush,startBanners,
     get ready(){return ready;},get hidden(){return hidden||platformHidden;},
     get profile(){return profile;},get platform(){return platform;},get provider(){return provider;},
+    get adStatus(){return {version:'2026-11-08.1',provider,platform,ready,
+      blockReason:adBlockReason(),warmupSecondsRemaining:Math.max(0,Math.ceil((adsAvailableAt-Date.now())/1000)),
+      bannersStarted,bannerVisible,bannerClosed,adPending:!!pendingAd,counters:{...adCounters},
+      lastError:lastAdError?{...lastAdError}:null,lastBlock:lastAdBlock?{...lastAdBlock}:null,
+      revenueVerified:false};},
     get saveStatus(){return {pending:!!journal?.pending,error:lastSaveError};},
     get bannerStatus(){return {visible:bannerVisible,height:bannerHeight,closed:bannerClosed};}
   });
